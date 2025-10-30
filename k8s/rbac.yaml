@@ -1,0 +1,72 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-app-role
+  namespace: agent-application
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: rbac
+rules:
+# Allow reading ConfigMaps and Secrets
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Allow reading own pod information for health checks
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: []
+# Allow reading services for service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-app-role-binding
+  namespace: agent-application
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: rbac
+subjects:
+- kind: ServiceAccount
+  name: agent-app-service-account
+  namespace: agent-application
+roleRef:
+  kind: Role
+  name: agent-app-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClusterRole for cross-namespace monitoring (if needed)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-app-monitoring-role
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: monitoring
+rules:
+# Allow reading metrics from other namespaces (if needed)
+- apiGroups: [""]
+  resources: ["nodes", "nodes/metrics", "services", "endpoints", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-app-monitoring-role-binding
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: monitoring
+subjects:
+- kind: ServiceAccount
+  name: agent-app-service-account
+  namespace: agent-application
+roleRef:
+  kind: ClusterRole
+  name: agent-app-monitoring-role
+  apiGroup: rbac.authorization.k8s.io

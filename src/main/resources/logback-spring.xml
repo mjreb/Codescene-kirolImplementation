@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    
+    <!-- Define properties -->
+    <springProfile name="!production">
+        <property name="LOG_LEVEL" value="INFO"/>
+        <property name="LOG_FILE" value="logs/agent-application.log"/>
+    </springProfile>
+    
+    <springProfile name="production">
+        <property name="LOG_LEVEL" value="WARN"/>
+        <property name="LOG_FILE" value="/var/log/agent-application/app.log"/>
+    </springProfile>
+    
+    <!-- Console appender for development -->
+    <springProfile name="!production">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+    </springProfile>
+    
+    <!-- JSON appender for production -->
+    <springProfile name="production">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <loggerName/>
+                    <message/>
+                    <mdc/>
+                    <arguments/>
+                    <stackTrace/>
+                    <pattern>
+                        <pattern>
+                            {
+                                "traceId": "%X{traceId:-}",
+                                "spanId": "%X{spanId:-}",
+                                "service": "agent-application",
+                                "environment": "${SPRING_PROFILES_ACTIVE:-development}"
+                            }
+                        </pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+    </springProfile>
+    
+    <!-- File appender -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+        
+        <springProfile name="!production">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n</pattern>
+            </encoder>
+        </springProfile>
+        
+        <springProfile name="production">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <loggerName/>
+                    <message/>
+                    <mdc/>
+                    <arguments/>
+                    <stackTrace/>
+                    <pattern>
+                        <pattern>
+                            {
+                                "traceId": "%X{traceId:-}",
+                                "spanId": "%X{spanId:-}",
+                                "service": "agent-application",
+                                "environment": "${SPRING_PROFILES_ACTIVE:-development}"
+                            }
+                        </pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </springProfile>
+    </appender>
+    
+    <!-- Async appender for better performance -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE"/>
+        <queueSize>1024</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
+    </appender>
+    
+    <!-- Specific loggers -->
+    <logger name="com.agent" level="${LOG_LEVEL}"/>
+    <logger name="org.springframework.security" level="WARN"/>
+    <logger name="org.springframework.web" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="org.springframework.cloud.sleuth" level="WARN"/>
+    
+    <!-- Audit logger -->
+    <logger name="AUDIT" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+    
+    <!-- Security logger -->
+    <logger name="SECURITY" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+    
+    <!-- Performance logger -->
+    <logger name="PERFORMANCE" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+    
+    <!-- Root logger -->
+    <root level="${LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </root>
+</configuration>

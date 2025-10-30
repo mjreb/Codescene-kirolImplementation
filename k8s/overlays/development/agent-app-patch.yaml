@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: agent-app
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "development,kubernetes"
+        - name: LOGGING_LEVEL_COM_AGENT
+          value: "DEBUG"
+        - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+          value: "1.0"

@@ -1,0 +1,741 @@
+openapi: 3.0.3
+info:
+  title: Agent Application API
+  description: |
+    # Agent Application API
+
+    This API provides endpoints for interacting with intelligent agents that implement the ReAct (Reasoning and Acting) pattern. 
+    The agents can process natural language requests, reason about tasks, and execute actions using various tools and LLM providers.
+
+    ## Features
+
+    - **Conversational AI**: Create and manage conversations with intelligent agents
+    - **ReAct Pattern**: Agents use reasoning and acting cycles to solve complex tasks
+    - **Tool Integration**: Agents can use various tools (calculators, web search, file operations)
+    - **Multiple LLM Providers**: Support for OpenAI, Anthropic, and Ollama
+    - **Real-time Streaming**: Stream agent responses in real-time
+    - **Token Management**: Track and limit token usage across conversations
+    - **Security**: JWT and API key authentication with role-based access control
+
+    ## Authentication
+
+    The API supports two authentication methods:
+
+    1. **JWT Bearer Token**: Obtain a token via `/auth/login` and include it in the `Authorization` header
+    2. **API Key**: Generate an API key via `/auth/api-key` and include it in the `X-API-Key` header
+
+    ## Rate Limiting
+
+    API requests are rate-limited per user and API key. Default limits:
+    - 100 requests per minute for authenticated users
+    - 1000 requests per hour for API keys
+    - Token limits apply per conversation and user
+
+    ## Error Handling
+
+    The API uses standard HTTP status codes and returns error details in a consistent format:
+
+    ```json
+    {
+      "error": "VALIDATION_ERROR",
+      "message": "Invalid request data",
+      "details": ["Field 'content' is required"],
+      "timestamp": "2024-01-01T10:00:00Z",
+      "path": "/conversations/123/messages"
+    }
+    ```
+
+  version: 1.0.0
+  contact:
+    name: Agent Application Team
+    email: support@agent-app.com
+    url: https://github.com/agent-app/agent-application
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api
+    description: Development server
+  - url: https://api.agent-app.com/api
+    description: Production server
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Conversations
+    description: Agent conversation management
+  - name: Streaming
+    description: Real-time conversation streaming
+  - name: Monitoring
+    description: System monitoring and health checks
+  - name: System Status
+    description: System status and operational information
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate user
+      description: Authenticates a user with email and password, returning JWT access and refresh tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationRequest'
+            examples:
+              login:
+                summary: User login
+                value:
+                  email: user@example.com
+                  password: securePassword123
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+              examples:
+                success:
+                  summary: Successful authentication
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    tokenType: Bearer
+                    expiresIn: 86400
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Creates a new user account and returns authentication tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              register:
+                summary: User registration
+                value:
+                  email: newuser@example.com
+                  password: securePassword123
+                  firstName: John
+                  lastName: Doe
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /conversations:
+    post:
+      tags:
+        - Conversations
+      summary: Create a new conversation
+      description: Creates a new conversation with an agent and optionally sends an initial message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+            examples:
+              create:
+                summary: Create conversation
+                value:
+                  agentId: default-agent
+                  title: Help with coding
+                  initialMessage: I need help writing a Java function to calculate fibonacci numbers
+      responses:
+        '201':
+          description: Conversation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
+              examples:
+                created:
+                  summary: Conversation created
+                  value:
+                    id: conv-123
+                    agentId: default-agent
+                    title: Help with coding
+                    status: ACTIVE
+                    createdAt: '2024-01-01T10:00:00Z'
+                    lastActivity: '2024-01-01T10:00:00Z'
+                    messageCount: 1
+                    tokenUsage:
+                      totalTokens: 25
+                      inputTokens: 15
+                      outputTokens: 10
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /conversations/{conversationId}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation details
+      description: Retrieves the complete conversation history including all messages and metadata
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          description: Unique identifier of the conversation
+          schema:
+            type: string
+          example: conv-123
+      responses:
+        '200':
+          description: Conversation retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Conversations
+      summary: Terminate a conversation
+      description: Permanently terminates a conversation and cleans up associated resources
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          description: Unique identifier of the conversation
+          schema:
+            type: string
+          example: conv-123
+      responses:
+        '204':
+          description: Conversation terminated successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conversation cannot be terminated in current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /conversations/{conversationId}/messages:
+    post:
+      tags:
+        - Conversations
+      summary: Send a message to a conversation
+      description: Sends a message to an existing conversation and receives the agent's response
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          description: Unique identifier of the conversation
+          schema:
+            type: string
+          example: conv-123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            examples:
+              message:
+                summary: Send message
+                value:
+                  content: Can you help me optimize this code for better performance?
+                  metadata:
+                    priority: high
+                    context: code-review
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMessageResponse'
+              examples:
+                response:
+                  summary: Agent response
+                  value:
+                    conversationId: conv-123
+                    messageId: msg-456
+                    content: I can help you optimize your code. Let me analyze it and suggest improvements...
+                    reasoning:
+                      - phase: THINKING
+                        content: The user wants code optimization help. I should analyze the code structure first.
+                      - phase: ACTING
+                        content: Using code analysis tool to identify performance bottlenecks.
+                    toolCalls:
+                      - toolName: code-analyzer
+                        parameters:
+                          language: java
+                        result: Found 3 optimization opportunities
+                    tokenUsage:
+                      inputTokens: 45
+                      outputTokens: 120
+                      totalTokens: 165
+                    timestamp: '2024-01-01T10:05:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /health:
+    get:
+      tags:
+        - Monitoring
+      summary: Get system health status
+      description: Returns the overall health status of the system and its dependencies
+      security: []
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login endpoint
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for service-to-service authentication
+
+  schemas:
+    AuthenticationRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          description: User's password
+          minLength: 8
+          example: securePassword123
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: newuser@example.com
+        password:
+          type: string
+          format: password
+          description: User's password
+          minLength: 8
+          example: securePassword123
+        firstName:
+          type: string
+          description: User's first name
+          example: John
+        lastName:
+          type: string
+          description: User's last name
+          example: Doe
+
+    AuthenticationResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: JWT refresh token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        tokenType:
+          type: string
+          description: Token type
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Token expiration time in seconds
+          example: 86400
+
+    CreateConversationRequest:
+      type: object
+      required:
+        - agentId
+      properties:
+        agentId:
+          type: string
+          description: ID of the agent to use for this conversation
+          example: default-agent
+        title:
+          type: string
+          description: Optional title for the conversation
+          example: Help with coding
+        initialMessage:
+          type: string
+          description: Optional initial message to send to the agent
+          example: I need help writing a Java function
+
+    SendMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: Message content to send to the agent
+          example: Can you help me optimize this code?
+        metadata:
+          type: object
+          description: Optional metadata for the message
+          additionalProperties: true
+          example:
+            priority: high
+            context: code-review
+
+    ConversationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique conversation identifier
+          example: conv-123
+        agentId:
+          type: string
+          description: ID of the agent used in this conversation
+          example: default-agent
+        title:
+          type: string
+          description: Conversation title
+          example: Help with coding
+        status:
+          type: string
+          enum: [ACTIVE, TERMINATED, PAUSED]
+          description: Current conversation status
+          example: ACTIVE
+        createdAt:
+          type: string
+          format: date-time
+          description: Conversation creation timestamp
+          example: '2024-01-01T10:00:00Z'
+        lastActivity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+          example: '2024-01-01T10:05:00Z'
+        messageCount:
+          type: integer
+          description: Total number of messages in the conversation
+          example: 3
+        messages:
+          type: array
+          description: List of messages in the conversation
+          items:
+            $ref: '#/components/schemas/Message'
+        tokenUsage:
+          $ref: '#/components/schemas/TokenUsage'
+
+    AgentMessageResponse:
+      type: object
+      properties:
+        conversationId:
+          type: string
+          description: Conversation identifier
+          example: conv-123
+        messageId:
+          type: string
+          description: Unique message identifier
+          example: msg-456
+        content:
+          type: string
+          description: Agent's response content
+          example: I can help you optimize your code...
+        reasoning:
+          type: array
+          description: Agent's reasoning steps
+          items:
+            $ref: '#/components/schemas/ReasoningStep'
+        toolCalls:
+          type: array
+          description: Tools called during processing
+          items:
+            $ref: '#/components/schemas/ToolCall'
+        tokenUsage:
+          $ref: '#/components/schemas/TokenUsage'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+          example: '2024-01-01T10:05:00Z'
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique message identifier
+          example: msg-123
+        type:
+          type: string
+          enum: [USER, ASSISTANT, SYSTEM, TOOL_CALL, TOOL_RESULT]
+          description: Message type
+          example: USER
+        content:
+          type: string
+          description: Message content
+          example: I need help with Java
+        metadata:
+          type: object
+          description: Message metadata
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+          description: Message timestamp
+          example: '2024-01-01T10:00:00Z'
+
+    ReasoningStep:
+      type: object
+      properties:
+        phase:
+          type: string
+          enum: [THINKING, ACTING, OBSERVING]
+          description: ReAct phase
+          example: THINKING
+        content:
+          type: string
+          description: Reasoning content
+          example: The user wants code optimization help
+
+    ToolCall:
+      type: object
+      properties:
+        toolName:
+          type: string
+          description: Name of the tool called
+          example: code-analyzer
+        parameters:
+          type: object
+          description: Parameters passed to the tool
+          additionalProperties: true
+          example:
+            language: java
+        result:
+          type: string
+          description: Tool execution result
+          example: Found 3 optimization opportunities
+
+    TokenUsage:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+          description: Number of input tokens
+          example: 45
+        outputTokens:
+          type: integer
+          description: Number of output tokens
+          example: 120
+        totalTokens:
+          type: integer
+          description: Total number of tokens
+          example: 165
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN, DEGRADED]
+          description: Overall system status
+          example: UP
+        components:
+          type: object
+          description: Status of individual components
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [UP, DOWN, DEGRADED]
+              details:
+                type: object
+                additionalProperties: true
+          example:
+            database:
+              status: UP
+              details:
+                connectionPool: 10/20
+            redis:
+              status: UP
+              details:
+                memory: 45MB
+            llmProviders:
+              status: UP
+              details:
+                openai: UP
+                anthropic: DOWN
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          description: Human-readable error message
+          example: Invalid request data
+        details:
+          type: array
+          description: Detailed error information
+          items:
+            type: string
+          example:
+            - Field 'content' is required
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: '2024-01-01T10:00:00Z'
+        path:
+          type: string
+          description: Request path that caused the error
+          example: /conversations/123/messages
+
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation:
+              summary: Validation error
+              value:
+                error: VALIDATION_ERROR
+                message: Invalid request data
+                details:
+                  - Field 'content' is required
+                timestamp: '2024-01-01T10:00:00Z'
+                path: /conversations/123/messages
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            auth:
+              summary: Authentication required
+              value:
+                error: UNAUTHORIZED
+                message: Authentication required
+                timestamp: '2024-01-01T10:00:00Z'
+                path: /conversations
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            permission:
+              summary: Insufficient permissions
+              value:
+                error: FORBIDDEN
+                message: Insufficient permissions to access this resource
+                timestamp: '2024-01-01T10:00:00Z'
+                path: /conversations/123
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              summary: Resource not found
+              value:
+                error: NOT_FOUND
+                message: Conversation not found
+                timestamp: '2024-01-01T10:00:00Z'
+                path: /conversations/123
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rateLimit:
+              summary: Rate limit exceeded
+              value:
+                error: RATE_LIMITED
+                message: Rate limit exceeded. Try again later.
+                timestamp: '2024-01-01T10:00:00Z'
+                path: /conversations/123/messages

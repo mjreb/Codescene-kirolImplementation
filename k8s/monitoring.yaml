@@ -1,0 +1,112 @@
+# ServiceMonitor for Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: agent-app-metrics
+  namespace: agent-application
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-application
+  endpoints:
+  - port: http
+    path: /api/actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+---
+# PodMonitor for additional pod-level metrics
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: agent-app-pod-metrics
+  namespace: agent-application
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-application
+  podMetricsEndpoints:
+  - port: http
+    path: /api/actuator/prometheus
+    interval: 30s
+---
+# PrometheusRule for alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agent-app-alerts
+  namespace: agent-application
+  labels:
+    app.kubernetes.io/name: agent-application
+    app.kubernetes.io/component: alerting
+spec:
+  groups:
+  - name: agent-application.rules
+    rules:
+    - alert: AgentAppDown
+      expr: up{job="agent-application"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Agent Application is down"
+        description: "Agent Application has been down for more than 1 minute."
+    
+    - alert: AgentAppHighErrorRate
+      expr: rate(http_server_requests_total{status=~"5.."}[5m]) / rate(http_server_requests_total[5m]) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate in Agent Application"
+        description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+    
+    - alert: AgentAppHighResponseTime
+      expr: histogram_quantile(0.95, rate(http_server_requests_duration_seconds_bucket[5m])) > 5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High response time in Agent Application"
+        description: "95th percentile response time is {{ $value }}s for the last 5 minutes."
+    
+    - alert: AgentAppHighMemoryUsage
+      expr: (container_memory_usage_bytes{pod=~"agent-app-.*"} / container_spec_memory_limit_bytes) > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage in Agent Application"
+        description: "Memory usage is {{ $value | humanizePercentage }} for pod {{ $labels.pod }}."
+    
+    - alert: AgentAppHighCPUUsage
+      expr: rate(container_cpu_usage_seconds_total{pod=~"agent-app-.*"}[5m]) > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage in Agent Application"
+        description: "CPU usage is {{ $value | humanizePercentage }} for pod {{ $labels.pod }}."
+    
+    - alert: PostgresDown
+      expr: up{job="postgres"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PostgreSQL is down"
+        description: "PostgreSQL database has been down for more than 1 minute."
+    
+    - alert: RedisDown
+      expr: up{job="redis"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Redis is down"
+        description: "Redis cache has been down for more than 1 minute."

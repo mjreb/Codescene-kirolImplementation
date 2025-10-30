@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: agent-application-production
+
+# Base configuration
+bases:
+- ../../
+
+# Environment-specific labels
+commonLabels:
+  environment: production
+
+# Environment-specific annotations
+commonAnnotations:
+  environment: production
+  managed-by: kustomize
+
+# Namespace override
+namespace: agent-application-prod
+
+# Replicas for production
+replicas:
+- name: agent-app
+  count: 3
+- name: postgres
+  count: 1
+- name: redis
+  count: 1
+
+# Resource patches for production
+patchesStrategicMerge:
+- agent-app-patch.yaml
+- postgres-patch.yaml
+- redis-patch.yaml
+- hpa-patch.yaml
+
+# ConfigMap patches
+configMapGenerator:
+- name: agent-app-config
+  behavior: merge
+  literals:
+  - SPRING_PROFILES_ACTIVE=production,kubernetes
+  - LOGGING_LEVEL_COM_AGENT=INFO
+  - MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0.01
+
+# Images for production
+images:
+- name: agent-application
+  newTag: v1.0.0

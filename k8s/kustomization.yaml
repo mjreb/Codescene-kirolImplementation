@@ -1,0 +1,79 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: agent-application
+  namespace: agent-application
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: agent-application
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+
+# Namespace for all resources
+namespace: agent-application
+
+# Resources to include
+resources:
+- namespace.yaml
+- configmap.yaml
+- secrets.yaml
+- rbac.yaml
+- postgres-deployment.yaml
+- redis-deployment.yaml
+- agent-app-deployment.yaml
+- ingress.yaml
+- hpa.yaml
+- monitoring.yaml
+- network-policy.yaml
+
+# Images to replace
+images:
+- name: agent-application
+  newTag: latest
+
+# ConfigMap generator for additional configs
+configMapGenerator:
+- name: app-version-config
+  literals:
+  - APP_VERSION=1.0.0
+  - BUILD_DATE=2024-01-01
+  - GIT_COMMIT=unknown
+
+# Secret generator for additional secrets (use with care)
+# secretGenerator:
+# - name: additional-secrets
+#   literals:
+#   - key=value
+
+# Patches for environment-specific customizations
+patchesStrategicMerge:
+- |-
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: agent-app
+    namespace: agent-application
+  spec:
+    template:
+      metadata:
+        annotations:
+          deployment.kubernetes.io/revision: "1"
+      spec:
+        containers:
+        - name: agent-app
+          env:
+          - name: DEPLOYMENT_TIMESTAMP
+            value: "2024-01-01T00:00:00Z"
+
+# Replicas for different environments
+replicas:
+- name: agent-app
+  count: 2
+
+# Resource transformers
+transformers: []
+
+# Generators
+generators: []

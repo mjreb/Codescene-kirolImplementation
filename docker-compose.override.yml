@@ -1,0 +1,30 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+services:
+  agent-app:
+    environment:
+      - SPRING_PROFILES_ACTIVE=development,docker
+      - LOGGING_LEVEL_COM_AGENT=DEBUG
+      - MANAGEMENT_TRACING_SAMPLING_PROBABILITY=1.0
+      - AGENT_MONITORING_HEALTH_DETAILED_ENABLED=true
+    volumes:
+      # Mount source code for hot reload (if using spring-boot-devtools)
+      - ./src:/app/src:ro
+      - ./target:/app/target
+    ports:
+      - "8080:8080"
+      - "5005:5005" # Debug port
+    command: >
+      sh -c "java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+             $$JAVA_OPTS -jar app.jar"
+
+  postgres:
+    environment:
+      - POSTGRES_DB=agentdb_dev
+    ports:
+      - "5433:5432" # Different port to avoid conflicts
+
+  redis:
+    ports:
+      - "6380:6379" # Different port to avoid conflicts

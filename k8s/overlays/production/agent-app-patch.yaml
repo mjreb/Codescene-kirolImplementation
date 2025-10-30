@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: agent-app
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "750m"
+          limits:
+            memory: "2Gi"
+            cpu: "1500m"
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production,kubernetes"
+        - name: LOGGING_LEVEL_COM_AGENT
+          value: "INFO"
+        - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+          value: "0.01"
+        - name: JAVA_OPTS
+          value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=70.0 -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
